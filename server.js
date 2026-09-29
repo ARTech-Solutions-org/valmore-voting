@@ -1,6 +1,15 @@
 const express = require('express');
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
+const { Redis } = require('@upstash/redis');
+
+let redis = null;
+try {
+  redis = Redis.fromEnv();
+  console.log("✅ Upstash Redis is configured.");
+} catch (e) {
+  console.log("⚠️ Upstash Redis not configured. Using temporary memory state.");
+}
 
 const app = express();
 
@@ -32,48 +41,64 @@ app.get('/vote', (req, res) => {
   res.sendFile(path.join(__dirname, 'vote.html'));
 });
 
-// ─── Routes ────────────────────────────────────────────────────────────────
+// ─── API Routes ────────────────────────────────────────────────────────────
 
-// Check if device has voted
-app.post('/api/check-device', (req, res) => {
+app.post('/api/check-device', async (req, res) => {
   const { deviceId } = req.body;
+  if (!deviceId) return res.json({ hasVoted: false });
+  
+  if (redis) {
+    const hasVoted = await redis.sismember('votedDevices', deviceId);
+    return res.json({ hasVoted: !!hasVoted });
+  }
   res.json({ hasVoted: votedDevices.has(deviceId) });
 });
 
-// Submit vote
-app.post('/api/vote', (req, res) => {
+app.post('/api/vote', async (req, res) => {
   const { deviceId, choice } = req.body;
+  if (!deviceId || !choice) return res.status(400).json({ success: false, message: 'Missing deviceId or choice' });
+  if (!options.includes(choice)) return res.status(400).json({ success: false, message: 'Invalid choice' });
 
-  if (!deviceId || !choice) {
-    return res.status(400).json({ success: false, message: 'Missing deviceId or choice' });
+  if (redis) {
+    const isMember = await redis.sismember('votedDevices', deviceId);
+    if (isMember) return res.status(403).json({ success: false, message: 'Already voted' });
+    
+    await redis.hincrby('votes', choice, 1);
+    await redis.sadd('votedDevices', deviceId);
+    return res.json({ success: true });
   }
 
-  if (votedDevices.has(deviceId)) {
-    return res.status(403).json({ success: false, message: 'Already voted' });
-  }
-
-  if (!votes.hasOwnProperty(choice)) {
-    return res.status(400).json({ success: false, message: 'Invalid choice' });
-  }
-
+  if (votedDevices.has(deviceId)) return res.status(403).json({ success: false, message: 'Already voted' });
   votes[choice]++;
   votedDevices.add(deviceId);
   totalVoters++;
-
   res.json({ success: true });
 });
 
-// Reset votes (admin)
-app.post('/api/reset', (req, res) => {
-  options.forEach(o => votes[o] = 0);
-  votedDevices.clear();
-  totalVoters = 0;
-
+app.post('/api/reset', async (req, res) => {
+  if (redis) {
+    await redis.del('votes');
+    await redis.del('votedDevices');
+  } else {
+    options.forEach(o => votes[o] = 0);
+    votedDevices.clear();
+    totalVoters = 0;
+  }
   res.json({ success: true });
 });
 
-// Get current state
-app.get('/api/state', (req, res) => {
+app.get('/api/state', async (req, res) => {
+  if (redis) {
+    const redisVotes = await redis.hgetall('votes') || {};
+    const count = await redis.scard('votedDevices') || 0;
+    
+    // Ensure all options exist in the returned object
+    let currentVotes = {};
+    options.forEach(o => {
+      currentVotes[o] = parseInt(redisVotes[o] || 0, 10);
+    });
+    return res.json({ votes: currentVotes, totalVoters: count, options });
+  }
   res.json({ votes, totalVoters, options });
 });
 
