@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Valmore Holding — Live Voting Display</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Outfit:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --cyan:   #00e5ff;
+      --teal:   #00ffc6;
+      --green:  #00e676;
+      --c2:     #00b4d8;
+      --gold:   #ffd200;
+      --navy:   rgba(4, 14, 38, 0.82);
+      --row-bg: rgba(8, 22, 54, 0.78);
+      --border: rgba(255,255,255,0.07);
+      --text:   #dff2ff;
+      --muted:  rgba(140, 185, 215, 0.55);
+    }
+
+    html, body {
+      width: 100%; height: 100%;
+      overflow: hidden;
+      font-family: 'Inter', sans-serif;
+      background: #020c1e;
+      color: var(--text);
+    }
+
+    /* ─── Background (full screen) ─────────── */
+    .bg-full {
+      position: fixed; inset: 0; z-index: 0;
+      background: url('BGG.jpg') center / cover no-repeat;
+    }
+    /* Dark overlay on sides, lighter in center */
+    .bg-full::after {
+      content: ''; position: absolute; inset: 0;
+      background:
+        linear-gradient(90deg,
+          rgba(2,10,28,0.96) 0%,
+          rgba(2,10,28,0.96) 28%,
+          rgba(2,10,28,0.55) 38%,
+          rgba(2,10,28,0.30) 50%,
+          rgba(2,10,28,0.55) 62%,
+          rgba(2,10,28,0.96) 72%,
+          rgba(2,10,28,0.96) 100%
+        );
+    }
+
+    /* ─── Root layout: header + content + footer ─── */
+    .screen {
+      position: relative; z-index: 1;
+      width: 100vw; height: 100vh;
+      display: grid;
+      grid-template-rows: 52px 1fr 36px;
+      overflow: hidden;
+    }
+
+    /* ═══════════════════════════════════════
+       HEADER
+    ═══════════════════════════════════════ */
+    header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 24px;
+      background: rgba(2,8,22,0.70);
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+      backdrop-filter: blur(20px);
+    }
+
+    .logo img {
+      height: 30px;
+      filter: brightness(0) invert(1);
+      object-fit: contain;
+    }
+
+    /* Center: nothing or optional label */
+    .hd-spacer { flex: 1; }
+
+    .live-results-badge {
+      display: flex; align-items: center; gap: 7px;
+      font-size: 10px; font-weight: 800; letter-spacing: 3px;
+      color: #fff; text-transform: uppercase;
+    }
+    .live-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: #00e676;
+      box-shadow: 0 0 8px #00e676, 0 0 14px rgba(0,230,118,.4);
+      animation: blink 1.4s ease-in-out infinite;
+    }
+    @keyframes blink { 0%,100%{opacity:1;transform:scale(1);} 50%{opacity:.35;transform:scale(1.5);} }
+
+    /* Reset button — HIDDEN, triggered via Ctrl+Shift+R or corner tap */
+    .btn-reset { display: none; }
+
+    /* Invisible corner trigger (top-right 50x50 area) */
+    .reset-trigger {
+      position: fixed;
+      top: 0; right: 0;
+      width: 50px; height: 50px;
+      z-index: 200;
+      cursor: default;
+      background: transparent;
+      border: none;
+    }
+
+    /* ═══════════════════════════════════════
+       CONTENT: 3-column
+    ═══════════════════════════════════════ */
+    .content {
+      display: grid;
+      grid-template-columns: 348px 1fr 348px;
+      overflow: hidden;
+    }
+
+    /* ─── Side panels ─── */
+    .side-panel {
+      display: flex; flex-direction: column;
+      padding: 8px 10px;
+      gap: 4px;
+      overflow: hidden;
+    }
+    .side-panel.left  { background: rgba(2,8,22,0.60); border-right: 1px solid rgba(255,255,255,0.05); }
+    .side-panel.right { background: rgba(2,8,22,0.60); border-left:  1px solid rgba(255,255,255,0.05); }
+
+    /* ─── Vote row ─── */
+    .vote-row {
+      display: flex; align-items: center;
+      gap: 10px;
+      background: var(--row-bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 0 12px 0 8px;
+      backdrop-filter: blur(10px);
+      transition: border-color .3s, box-shadow .3s;
+      flex: 1;           /* stretch to fill panel evenly */
+      min-height: 0;     /* allow shrinking */
+      position: relative; overflow: hidden;
+    }
+    /* left accent */
+    .vote-row::before {
+      content: ''; flex-shrink: 0;
+      width: 3px; align-self: stretch;
+      border-radius: 3px;
+      background: rgba(0,229,255,.15);
+      transition: background .35s;
+      margin-right: 2px;
+    }
+    .vote-row.active::before  { background: rgba(0,230,118,.65); }
+    .vote-row.r1::before      { background: linear-gradient(180deg, #00ffc6, #00e676); }
+
+    .vote-row.active {
+      border-color: rgba(0,230,118,.22);
+      box-shadow: 0 0 12px rgba(0,230,118,.06);
+    }
+    .vote-row.r1 {
+      border-color: rgba(0,255,198,.28);
+      box-shadow: 0 0 18px rgba(0,255,198,.08);
+    }
+
+    /* Rank number */
+    .v-num {
+      font-size: 12px; font-weight: 700;
+      color: rgba(180,210,240,.35);
+      min-width: 20px; text-align: center;
+      flex-shrink: 0;
+      transition: color .3s;
+    }
+    .vote-row.r1 .v-num { color: var(--teal); }
+
+    /* Name + votes block */
+    .v-body {
+      flex: 1; min-width: 0;
+      display: flex; flex-direction: column; gap: 3px;
+      justify-content: center;
+    }
+    .v-name-row {
+      display: flex; align-items: center; justify-content: space-between; gap: 4px;
+    }
+    .v-name {
+      font-size: 13px; font-weight: 700; color: #e8f4ff;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .v-pct {
+      font-family: 'Outfit', sans-serif;
+      font-size: 16px; font-weight: 700;
+      color: rgba(0,229,255,.8);
+      flex-shrink: 0; min-width: 40px; text-align: right;
+      transition: color .3s;
+    }
+    .vote-row.active .v-pct { color: #00e676; }
+    .vote-row.r1 .v-pct     { color: var(--teal); }
+
+    .v-votes {
+      font-size: 10px; font-weight: 500; color: var(--muted);
+    }
+    .v-votes strong { color: rgba(160,210,240,.65); font-weight: 700; }
+
+    /* Bar */
+    .v-bar-track {
+      height: 5px;
+      background: rgba(255,255,255,.07);
+      border-radius: 99px; overflow: hidden;
+    }
+    .v-bar-fill {
+      height: 100%; border-radius: 99px;
+      background: linear-gradient(90deg, #00b8a0, #00e676);
+      box-shadow: 0 0 6px rgba(0,230,118,.5);
+      transition: width .95s cubic-bezier(.25,1,.5,1);
+      width: 0%;
+    }
+    .vote-row.r1 .v-bar-fill {
+      background: linear-gradient(90deg, #00c8aa, #00ffc6);
+      box-shadow: 0 0 8px rgba(0,255,198,.6);
+    }
+
+    /* ═══════════════════════════════════════
+       CENTER PANEL
+    ═══════════════════════════════════════ */
+    .center-panel {
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 22px;
+      padding: 16px 24px;
+      position: relative;
+    }
+
+    /* Big headline */
+    .headline {
+      text-align: center;
+      position: relative; z-index: 1;
+    }
+    .headline-top {
+      font-family: 'Outfit', sans-serif;
+      font-size: 28px; font-weight: 900;
+      color: #fff; letter-spacing: -.5px;
+      line-height: 1.15; text-transform: uppercase;
+    }
+    .headline-accent {
+      font-family: 'Outfit', sans-serif;
+      font-size: 28px; font-weight: 900;
+      color: var(--teal);
+      letter-spacing: -.5px; text-transform: uppercase;
+    }
+
+    /* QR wrapper */
+    .qr-block {
+      position: relative; z-index: 1;
+      display: flex; flex-direction: column;
+      align-items: center; gap: 14px;
+    }
+
+    .qr-outer {
+      position: relative;
+      padding: 3px;
+      border-radius: 18px;
+      background: linear-gradient(135deg, var(--cyan), var(--teal), var(--c2));
+      box-shadow: 0 0 40px rgba(0,229,255,.25), 0 0 80px rgba(0,229,255,.08);
+      animation: qr-glow 3s ease-in-out infinite alternate;
+    }
+    @keyframes qr-glow {
+      from { box-shadow: 0 0 30px rgba(0,229,255,.2), 0 0 60px rgba(0,229,255,.06); }
+      to   { box-shadow: 0 0 50px rgba(0,229,255,.4), 0 0 100px rgba(0,229,255,.14); }
+    }
+
+    .qr-inner {
+      background: #fff;
+      border-radius: 15px;
+      padding: 12px;
+      position: relative;
+    }
+    .qr-inner img { display: block; border-radius: 8px; }
+
+    /* Corner brackets */
+    .qr-corner {
+      position: absolute; width: 20px; height: 20px;
+      border-color: var(--cyan); border-style: solid;
+    }
+    .qr-corner.tl { top: -3px; left: -3px; border-width: 2.5px 0 0 2.5px; border-radius: 4px 0 0 0; }
+    .qr-corner.tr { top: -3px; right: -3px; border-width: 2.5px 2.5px 0 0; border-radius: 0 4px 0 0; }
+    .qr-corner.bl { bottom: -3px; left: -3px; border-width: 0 0 2.5px 2.5px; border-radius: 0 0 0 4px; }
+    .qr-corner.br { bottom: -3px; right: -3px; border-width: 0 2.5px 2.5px 0; border-radius: 0 0 4px 0; }
+
+    /* Scan line inside QR */
+    .qr-scan {
+      position: absolute; left: 12px; right: 12px; height: 2px;
+      background: linear-gradient(90deg, transparent, rgba(0,229,255,.9), transparent);
+      pointer-events: none;
+      animation: scanning 2.3s ease-in-out infinite;
+    }
+    @keyframes scanning {
+      0%  { top:12px; opacity:0; }
+      8%  { opacity:1; }
+      92% { opacity:1; }
+      100%{ top:calc(100% - 12px); opacity:0; }
+    }
+
+    .qr-cta {
+      text-align: center;
+    }
+    .qr-vote-here {
+      font-family: 'Outfit', sans-serif;
+      font-size: 18px; font-weight: 900;
+      color: #fff; letter-spacing: 2px;
+      text-transform: uppercase;
+    }
+    .qr-sub {
+      font-size: 10px; font-weight: 600; letter-spacing: 1.5px;
+      color: var(--muted); text-transform: uppercase; margin-top: 4px;
+    }
+
+    /* ═══════════════════════════════════════
+       FOOTER
+    ═══════════════════════════════════════ */
+    footer {
+      display: flex; align-items: center; justify-content: center;
+      gap: 28px;
+      background: rgba(2,8,22,0.75);
+      border-top: 1px solid rgba(255,255,255,0.06);
+      backdrop-filter: blur(16px);
+      padding: 0 24px;
+    }
+    .footer-item {
+      display: flex; align-items: center; gap: 7px;
+      font-size: 10px; font-weight: 600; letter-spacing: 1.2px;
+      color: var(--muted); text-transform: uppercase;
+    }
+    .footer-sep {
+      width: 1px; height: 16px; background: rgba(255,255,255,0.1);
+    }
+    .footer-val {
+      font-family: 'Outfit', sans-serif;
+      font-size: 12px; font-weight: 700;
+      color: #fff;
+    }
+    .status-dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: #00e676; box-shadow: 0 0 6px #00e676;
+      animation: blink 1.4s ease-in-out infinite;
+    }
+
+    /* ═══════════════════════════════════════
+       MODAL
+    ═══════════════════════════════════════ */
+    .modal-ov {
+      position: fixed; inset: 0; z-index: 100;
+      background: rgba(0,4,14,.78); backdrop-filter: blur(10px);
+      display: flex; align-items: center; justify-content: center;
+      opacity: 0; pointer-events: none; transition: opacity .25s;
+    }
+    .modal-ov.open { opacity: 1; pointer-events: all; }
+    .modal-box {
+      background: linear-gradient(145deg, rgba(4,16,44,.97), rgba(1,8,22,.99));
+      border: 1px solid rgba(0,229,255,.2);
+      border-radius: 20px; padding: 36px 44px; text-align: center;
+      box-shadow: 0 0 60px rgba(0,229,255,.1), 0 24px 60px rgba(0,0,0,.6);
+      max-width: 360px; width: 90%;
+    }
+    .modal-icon { font-size: 36px; margin-bottom: 12px; }
+    .modal-title { font-size: 19px; font-weight: 800; color: #fff; margin-bottom: 8px; }
+    .modal-desc { font-size: 13px; color: var(--muted); line-height: 1.65; margin-bottom: 26px; }
+    .modal-btns { display: flex; gap: 10px; justify-content: center; }
+    .mbtn {
+      padding: 9px 26px; border-radius: 99px;
+      font-family: 'Inter',sans-serif; font-size: 12px; font-weight: 700; cursor: pointer;
+      transition: all .2s;
+    }
+    .mbtn.cancel { background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.14); color: var(--muted); }
+    .mbtn.cancel:hover { background: rgba(255,255,255,.13); color: #fff; }
+    .mbtn.confirm { background: rgba(255,35,35,.16); border: 1px solid rgba(255,65,65,.5); color: #ff8080; }
+    .mbtn.confirm:hover { background: rgba(255,35,35,.3); color: #fff; }
+  </style>
+</head>
+<body>
+
+<div class="bg-full"></div>
+
+<!-- Modal -->
+<div class="modal-ov" id="modal">
+  <div class="modal-box">
+    <div class="modal-icon">⚠️</div>
+    <div class="modal-title">Reset All Votes?</div>
+    <div class="modal-desc">All votes will be cleared and devices will be allowed to vote again. This cannot be undone.</div>
+    <div class="modal-btns">
+      <button class="mbtn cancel" onclick="closeModal()">Cancel</button>
+      <button class="mbtn confirm" onclick="confirmReset()">Yes, Reset</button>
+    </div>
+  </div>
+</div>
+
+<div class="screen">
+
+  <!-- Hidden reset corner trigger (top-right) -->
+  <button class="reset-trigger" onclick="openModal()" title=""></button>
+
+  <!-- ══ HEADER ══ -->
+  <header>
+    <div class="logo"><img src="logo.png" alt="Valmore Holding" /></div>
+    <div class="hd-spacer"></div>
+    <div class="live-results-badge">
+      <span class="live-dot"></span>
+      Live Results
+    </div>
+  </header>
+
+  <!-- ══ CONTENT ══ -->
+  <div class="content">
+
+    <!-- Left: options 1–11 -->
+    <div class="side-panel left" id="leftPanel"></div>
+
+    <!-- Center: headline + QR -->
+    <div class="center-panel">
+      <div class="headline">
+        <div class="headline-top">Which value best</div>
+        <div class="headline-top">defines <span class="headline-accent">our future?</span></div>
+      </div>
+
+      <div class="qr-block">
+        <div class="qr-outer">
+          <div class="qr-inner">
+            <!-- QR src set by JS to match current domain -->
+            <img id="qrImg"
+              width="160" height="160" alt="QR Code"
+              style="display:block;"
+            />
+            <div class="qr-scan"></div>
+            <div class="qr-corner tl"></div>
+            <div class="qr-corner tr"></div>
+            <div class="qr-corner bl"></div>
+            <div class="qr-corner br"></div>
+          </div>
+        </div>
+        <div class="qr-cta">
+          <div class="qr-vote-here">Vote Here</div>
+          <div class="qr-sub">Scan the QR code to vote</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right: options 12–23 -->
+    <div class="side-panel right" id="rightPanel"></div>
+
+  </div>
+
+  <!-- ══ FOOTER ══ -->
+  <footer>
+    <div class="footer-item">
+      <span class="status-dot"></span>
+      Poll Status: <span class="footer-val">Active</span>
+    </div>
+    <div class="footer-sep"></div>
+    <div class="footer-item">
+      Voting Anonymous
+    </div>
+    <div class="footer-sep"></div>
+    <div class="footer-item">
+      Total Votes: <span class="footer-val" id="totalVoters">0</span>
+    </div>
+  </footer>
+
+</div>
+
+<script>
+const OPTIONS = [
+  'Passion','Commitment','Positivity','Energy','Ambition',
+  'Determination','Teamwork','Trust','Loyalty','Innovation',
+  'Experience','Creativity','Growth','Progress','Optimism',
+  'Achievement','Happiness','New Ideas','Collaboration','Alignment',
+  'Engagement','Ownership','Safety'
+];
+
+// Split: left = 1-11 (idx 0-10), right = 12-23 (idx 11-22)
+const LEFT_COUNT = 11;
+
+/* ── Build rows ── */
+function makeRow(opt, i) {
+  const row = document.createElement('div');
+  row.className = 'vote-row';
+  row.id = `row-${i}`;
+  row.innerHTML = `
+    <div class="v-num">${i+1}</div>
+    <div class="v-body">
+      <div class="v-name-row">
+        <div class="v-name">${opt}</div>
+        <div class="v-pct" id="pct-${i}">0%</div>
+      </div>
+      <div class="v-votes"><strong id="cnt-${i}">0</strong> votes</div>
+      <div class="v-bar-track"><div class="v-bar-fill" id="bar-${i}"></div></div>
+    </div>
+  `;
+  return row;
+}
+
+function buildPanels() {
+  const left  = document.getElementById('leftPanel');
+  const right = document.getElementById('rightPanel');
+  OPTIONS.forEach((opt, i) => {
+    const row = makeRow(opt, i);
+    if (i < LEFT_COUNT) left.appendChild(row);
+    else right.appendChild(row);
+  });
+}
+
+/* ── Update UI ── */
+function updateUI(votes, total) {
+  document.getElementById('totalVoters').textContent = total;
+
+  const sorted = OPTIONS
+    .map((o, i) => ({ name: o, idx: i, count: votes[o] || 0 }))
+    .sort((a, b) => b.count - a.count);
+
+  OPTIONS.forEach((opt, i) => {
+    const count = votes[opt] || 0;
+    const pct   = total > 0 ? Math.round((count / total) * 100) : 0;
+    const rank  = sorted.findIndex(s => s.name === opt) + 1;
+
+    document.getElementById(`pct-${i}`).textContent = `${pct}%`;
+    document.getElementById(`cnt-${i}`).textContent = count;
+    document.getElementById(`bar-${i}`).style.width = `${pct}%`;
+
+    const row = document.getElementById(`row-${i}`);
+    row.className = 'vote-row';
+    if (count > 0) {
+      row.classList.add('active');
+      if (rank === 1) row.classList.add('r1');
+    }
+  });
+}
+
+/* ── WebSocket ── */
+function connectWS() {
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const ws = new WebSocket(`${proto}//${location.host}`);
+  ws.onmessage = e => {
+    const d = JSON.parse(e.data);
+    if (d.type === 'update') updateUI(d.votes, d.totalVoters);
+  };
+  ws.onclose = () => setTimeout(connectWS, 2000);
+  ws.onerror = () => ws.close();
+}
+
+/* ── Dynamic QR (uses current domain automatically) ── */
+function setupQR() {
+  const voteURL = `${location.origin}/vote`;
+  const encoded = encodeURIComponent(voteURL);
+  document.getElementById('qrImg').src =
+    `https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encoded}&margin=4&bgcolor=ffffff&color=000814`;
+}
+
+/* ── Modal ── */
+function openModal()  { document.getElementById('modal').classList.add('open'); }
+function closeModal() { document.getElementById('modal').classList.remove('open'); }
+async function confirmReset() {
+  closeModal();
+  await fetch('/api/reset', { method: 'POST' });
+}
+
+/* ── Hidden keyboard shortcut: Ctrl + Shift + R ── */
+document.addEventListener('keydown', (e) => {
+  if (e.ctrlKey && e.shiftKey && e.key === 'R') {
+    e.preventDefault();
+    openModal();
+  }
+});
+
+buildPanels();
+setupQR();
+connectWS();
+</script>
+</body>
+</html>

@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <title>Valmore — Vote</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --cyan:  #00e5ff;
+      --teal:  #00ffc6;
+      --c2:    #00b4d8;
+      --bg:    rgba(3, 14, 38, 0.78);
+      --bdr:   rgba(0, 229, 255, 0.15);
+      --text:  #dff2ff;
+      --muted: rgba(150, 205, 235, 0.5);
+    }
+
+    html, body {
+      width: 100%; min-height: 100%;
+      font-family: 'Inter', sans-serif;
+      background: #00060f;
+      overflow-x: hidden;
+    }
+
+    .bg {
+      position: fixed; inset: 0; z-index: 0;
+      background: url('BGG.jpg') center / cover no-repeat;
+    }
+    .bg::after {
+      content: ''; position: absolute; inset: 0;
+      background: linear-gradient(165deg,
+        rgba(0,4,14,0.91) 0%,
+        rgba(0,10,30,0.83) 50%,
+        rgba(0,3,10,0.94) 100%);
+    }
+
+    /* ════════════════════════════════════════
+       LOADING
+    ════════════════════════════════════════ */
+    #loadingScreen {
+      position: fixed; inset: 0; z-index: 80;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 16px;
+      background: #00060f;
+    }
+    .spinner {
+      width: 44px; height: 44px;
+      border: 3px solid rgba(0,229,255,.12);
+      border-top-color: var(--cyan);
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .load-txt { font-size: 13px; font-weight: 500; color: var(--muted); }
+
+    /* ════════════════════════════════════════
+       MAIN PAGE
+    ════════════════════════════════════════ */
+    #mainPage {
+      position: relative; z-index: 1;
+      min-height: 100vh;
+      display: flex; flex-direction: column;
+      align-items: center;
+      padding-bottom: 48px;
+    }
+
+    /* Header */
+    .top-bar {
+      width: 100%;
+      display: flex; flex-direction: column; align-items: center;
+      padding: 28px 20px 20px;
+      position: relative;
+    }
+    .top-bar::after {
+      content: ''; position: absolute;
+      bottom: 0; left: 15%; right: 15%; height: 1px;
+      background: linear-gradient(90deg, transparent, var(--cyan), transparent);
+    }
+    .logo-img {
+      height: 28px;
+      filter: brightness(0) invert(1);
+      margin-bottom: 14px;
+    }
+    .pg-title {
+      font-size: 16px; font-weight: 800; color: #fff;
+      text-align: center; line-height: 1.4;
+    }
+    .pg-sub {
+      margin-top: 6px; font-size: 11px; color: var(--muted); text-align: center;
+    }
+    .one-badge {
+      display: inline-flex; align-items: center; gap: 5px;
+      margin-top: 11px;
+      padding: 4px 13px;
+      background: rgba(0,229,255,.07);
+      border: 1px solid rgba(0,229,255,.18);
+      border-radius: 99px;
+      font-size: 10px; font-weight: 700; color: var(--cyan); letter-spacing: .3px;
+    }
+    .pulse-dot {
+      width: 5px; height: 5px; border-radius: 50%;
+      background: var(--teal);
+      animation: pd 1.6s ease-in-out infinite;
+    }
+    @keyframes pd { 0%,100%{opacity:1;} 50%{opacity:.2;} }
+
+    /* Grid */
+    .vote-grid {
+      width: 100%; max-width: 480px;
+      padding: 18px 14px 0;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 9px;
+    }
+
+    /* ── Vote Button ── */
+    .vbtn {
+      position: relative;
+      display: flex; flex-direction: column;
+      align-items: flex-start;
+      padding: 14px 13px 38px;   /* bottom space for arrow */
+      border-radius: 18px;
+      border: 1px solid var(--bdr);
+      background: var(--bg);
+      cursor: pointer; overflow: hidden;
+      backdrop-filter: blur(16px);
+      -webkit-tap-highlight-color: transparent;
+      transition: transform .18s, border-color .2s, box-shadow .2s, background .2s;
+    }
+
+    /* radial glow inside on hover */
+    .vbtn::before {
+      content: ''; position: absolute; inset: 0;
+      background: radial-gradient(ellipse at 50% 100%, rgba(0,229,255,.10) 0%, transparent 70%);
+      opacity: 0; transition: opacity .3s;
+    }
+    .vbtn:hover::before { opacity: 1; }
+
+    /* top-edge glow line */
+    .vbtn::after {
+      content: ''; position: absolute; top: 0; left: 20%; right: 20%; height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(0,229,255,.45), transparent);
+      opacity: 0; transition: opacity .3s;
+    }
+    .vbtn:hover::after { opacity: 1; }
+
+    .vbtn:hover {
+      border-color: rgba(0,229,255,.42);
+      background: rgba(0,25,60,.78);
+      box-shadow: 0 8px 28px rgba(0,229,255,.10), 0 2px 10px rgba(0,0,0,.3);
+      transform: translateY(-3px);
+    }
+    .vbtn:active { transform: scale(.95); }
+
+    /* Number pill */
+    .vnum {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 24px; height: 24px; border-radius: 7px;
+      background: rgba(0,229,255,.09);
+      border: 1px solid rgba(0,229,255,.18);
+      font-size: 10px; font-weight: 800;
+      color: rgba(0,229,255,.6);
+      margin-bottom: 9px; flex-shrink: 0;
+    }
+
+    .vname {
+      font-size: 14px; font-weight: 800;
+      color: #fff; line-height: 1.25;
+      word-break: break-word;
+    }
+
+    /* Arrow chip at bottom right */
+    .varrow {
+      position: absolute; bottom: 11px; right: 11px;
+      width: 24px; height: 24px; border-radius: 50%;
+      background: rgba(0,229,255,.08);
+      border: 1px solid rgba(0,229,255,.16);
+      display: flex; align-items: center; justify-content: center;
+      color: rgba(0,229,255,.4); font-size: 14px; font-weight: 700;
+      transition: all .2s;
+    }
+    .vbtn:hover .varrow {
+      background: rgba(0,229,255,.18);
+      border-color: rgba(0,229,255,.4);
+      color: var(--cyan);
+      transform: translate(2px, -1px);
+    }
+
+    /* ════════════════════════════════════════
+       SUBMIT OVERLAY
+    ════════════════════════════════════════ */
+    #submitOv {
+      position: fixed; inset: 0; z-index: 60;
+      background: rgba(0,3,10,.65); backdrop-filter: blur(8px);
+      display: flex; align-items: center; justify-content: center;
+      opacity: 0; pointer-events: none; transition: opacity .2s;
+    }
+    #submitOv.show { opacity: 1; pointer-events: all; }
+    .sub-box {
+      background: rgba(3,12,36,.96);
+      border: 1px solid var(--bdr); border-radius: 20px;
+      padding: 30px 38px; text-align: center;
+      box-shadow: 0 0 50px rgba(0,229,255,.12);
+    }
+    .sub-box p { margin-top: 13px; font-size: 13px; font-weight: 600; color: var(--text); }
+
+    /* ════════════════════════════════════════
+       THANK YOU SCREEN
+    ════════════════════════════════════════ */
+    #thankyouScreen {
+      position: fixed; inset: 0; z-index: 70;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      padding: 32px 24px;
+      background: rgba(0,3,10,.92);
+      backdrop-filter: blur(18px);
+      text-align: center;
+    }
+
+    /* ── Particles canvas ── */
+    #confetti {
+      position: absolute; inset: 0;
+      pointer-events: none; z-index: 0;
+    }
+
+    /* ── Logo ── */
+    .ty-logo {
+      position: relative; z-index: 1;
+      height: 36px;
+      filter: brightness(0) invert(1);
+      opacity: 0;
+      transform: translateY(-18px);
+      animation: slideDown .6s .1s cubic-bezier(.34,1.56,.64,1) forwards;
+      margin-bottom: 28px;
+    }
+    @keyframes slideDown {
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ── Ring check ── */
+    .ty-ring-wrap {
+      position: relative; z-index: 1;
+      width: 106px; height: 106px;
+      margin-bottom: 24px;
+      opacity: 0;
+      animation: fadeIn .4s .5s ease forwards;
+    }
+    @keyframes fadeIn { to { opacity: 1; } }
+
+    .ty-ring-wrap svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+
+    .ring-bg { stroke: rgba(0,229,255,.12); }
+    .ring-fg {
+      stroke: url(#ringGrad);
+      stroke-linecap: round;
+      stroke-dasharray: 298;
+      stroke-dashoffset: 298;
+      transform-origin: center;
+      transform: rotate(-90deg);
+      animation: drawRing 1s .6s cubic-bezier(.4,0,.2,1) forwards;
+    }
+    @keyframes drawRing { to { stroke-dashoffset: 0; } }
+
+    .ty-check {
+      position: absolute; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 38px;
+      color: #ffffff;
+      text-shadow: 0 0 20px rgba(0,229,255,.6);
+      opacity: 0;
+      transform: scale(.4);
+      animation: popIn .5s 1.3s cubic-bezier(.34,1.56,.64,1) forwards;
+    }
+    @keyframes popIn { to { opacity: 1; transform: scale(1); } }
+
+    /* ── Text ── */
+    .ty-title {
+      position: relative; z-index: 1;
+      font-size: 30px; font-weight: 900; color: #fff;
+      letter-spacing: -.5px; line-height: 1.15;
+      opacity: 0;
+      animation: fadeUp .6s 1.5s ease forwards;
+    }
+    .ty-title span { color: var(--cyan); }
+
+    .ty-sub {
+      position: relative; z-index: 1;
+      margin-top: 10px;
+      font-size: 13px; color: var(--muted); line-height: 1.7;
+      max-width: 260px;
+      opacity: 0;
+      animation: fadeUp .6s 1.7s ease forwards;
+    }
+
+    /* ── Choice chip ── */
+    .ty-chip {
+      position: relative; z-index: 1;
+      display: inline-flex; align-items: center; gap: 8px;
+      margin-top: 20px;
+      padding: 11px 26px; border-radius: 99px;
+      background: rgba(0,229,255,.09);
+      border: 1px solid rgba(0,229,255,.28);
+      color: var(--cyan); font-size: 15px; font-weight: 800;
+      letter-spacing: .2px;
+      opacity: 0;
+      animation: fadeUp .6s 1.9s ease forwards;
+    }
+    .ty-chip-dot {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: var(--teal);
+      box-shadow: 0 0 8px var(--teal);
+      animation: pd 1.6s ease-in-out infinite;
+    }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(12px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ── Big glow orb behind everything ── */
+    .ty-orb {
+      position: absolute; z-index: 0;
+      width: 300px; height: 300px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(0,229,255,.10) 0%, transparent 70%);
+      animation: orbPulse 3s ease-in-out infinite alternate;
+    }
+    @keyframes orbPulse {
+      from { transform: scale(.8); opacity: .5; }
+      to   { transform: scale(1.2); opacity: 1; }
+    }
+
+    @media (min-width: 480px) {
+      .vote-grid { grid-template-columns: repeat(3, 1fr); }
+    }
+    @media (max-width: 340px) {
+      .vname { font-size: 12px; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="bg"></div>
+
+<!-- Loading -->
+<div id="loadingScreen">
+  <div class="spinner"></div>
+  <div class="load-txt">Loading…</div>
+</div>
+
+<!-- Submit Overlay -->
+<div id="submitOv">
+  <div class="sub-box">
+    <div class="spinner" style="margin:0 auto;"></div>
+    <p>Submitting your vote…</p>
+  </div>
+</div>
+
+<!-- ═══════════ THANK YOU SCREEN ═══════════ -->
+<div id="thankyouScreen" style="display:none;">
+  <canvas id="confetti"></canvas>
+  <div class="ty-orb"></div>
+
+  <img class="ty-logo" src="logo.png" alt="Valmore Holding" />
+
+  <div class="ty-ring-wrap">
+    <svg viewBox="0 0 106 106" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="ringGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stop-color="#00e5ff"/>
+          <stop offset="100%" stop-color="#00ffc6"/>
+        </linearGradient>
+      </defs>
+      <circle class="ring-bg" cx="53" cy="53" r="47.5" stroke-width="3"/>
+      <circle class="ring-fg" cx="53" cy="53" r="47.5" stroke-width="3"/>
+    </svg>
+    <div class="ty-check">✓</div>
+  </div>
+
+  <div class="ty-title">Thank <span>You!</span></div>
+  <div class="ty-sub">Your vote has been recorded.<br/>Watch the live results on the big screen!</div>
+  <div class="ty-chip">
+    <span class="ty-chip-dot"></span>
+    <span id="choiceText">—</span>
+  </div>
+</div>
+
+<!-- ═══════════ MAIN PAGE ═══════════ -->
+<div id="mainPage" style="display:none;">
+  <div class="top-bar">
+    <img class="logo-img" src="logo.png" alt="Valmore Holding" />
+    <div class="pg-title">What word best describes<br/>Valmore Holding?</div>
+    <div class="pg-sub">Choose the one that resonates most with you</div>
+    <div class="one-badge"><span class="pulse-dot"></span> One vote per device only</div>
+  </div>
+  <div class="vote-grid" id="voteGrid"></div>
+</div>
+
+<script>
+const OPTIONS = [
+  'Passion','Commitment','Positivity','Energy','Ambition',
+  'Determination','Teamwork','Trust','Loyalty','Innovation',
+  'Experience','Creativity','Growth','Progress','Optimism',
+  'Achievement','Happiness','New Ideas','Collaboration','Alignment',
+  'Engagement','Ownership','Safety'
+];
+
+/* ── Device ID ── */
+function getDeviceId() {
+  let id = localStorage.getItem('valmore_dev');
+  if (!id) {
+    id = 'dev_' + Date.now() + '_' + Math.random().toString(36).substr(2,9);
+    localStorage.setItem('valmore_dev', id);
+  }
+  return id;
+}
+const deviceId = getDeviceId();
+
+/* ── Build grid ── */
+function buildGrid() {
+  const grid = document.getElementById('voteGrid');
+  OPTIONS.forEach((opt, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'vbtn';
+    btn.innerHTML = `
+      <div class="vnum">${String(i+1).padStart(2,'0')}</div>
+      <div class="vname">${opt}</div>
+      <div class="varrow">›</div>
+    `;
+    btn.addEventListener('click', () => submitVote(opt));
+    grid.appendChild(btn);
+  });
+}
+
+/* ── Submit ── */
+async function submitVote(choice) {
+  const ov = document.getElementById('submitOv');
+  ov.classList.add('show');
+  try {
+    const res = await fetch('/api/vote', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ deviceId, choice })
+    });
+    const data = await res.json();
+    ov.classList.remove('show');
+    if (data.success) {
+      localStorage.setItem('valmore_voted', '1');
+      localStorage.setItem('valmore_choice', choice);
+      showThankYou(choice);
+    } else if (data.message === 'Already voted') {
+      showThankYou(localStorage.getItem('valmore_choice') || '');
+    }
+  } catch {
+    ov.classList.remove('show');
+    alert('Connection error. Please try again.');
+  }
+}
+
+/* ── Thank You screen ── */
+function showThankYou(choice) {
+  document.getElementById('mainPage').style.display = 'none';
+  const screen = document.getElementById('thankyouScreen');
+  screen.style.display = 'flex';
+  document.getElementById('choiceText').textContent = choice || '—';
+
+  // reset ring animation by re-triggering
+  const fg = screen.querySelector('.ring-fg');
+  fg.style.animation = 'none';
+  fg.offsetHeight; // reflow
+  fg.style.animation = '';
+
+  // Launch confetti
+  setTimeout(launchConfetti, 1400);
+}
+
+/* ── Confetti ── */
+function launchConfetti() {
+  const canvas = document.getElementById('confetti');
+  const ctx = canvas.getContext('2d');
+  canvas.width  = window.innerWidth;
+  canvas.height = window.innerHeight;
+
+  const colors = ['#00e5ff','#00ffc6','#00b4d8','#ffffff','#7fffd4','#a0f0ff'];
+  const pieces = Array.from({ length: 90 }, () => ({
+    x: Math.random() * canvas.width,
+    y: Math.random() * canvas.height - canvas.height,
+    w: 4 + Math.random() * 6,
+    h: 8 + Math.random() * 10,
+    color: colors[Math.floor(Math.random() * colors.length)],
+    rot: Math.random() * 360,
+    rotSpeed: (Math.random() - .5) * 5,
+    vx: (Math.random() - .5) * 2,
+    vy: 1.5 + Math.random() * 3,
+    opacity: .7 + Math.random() * .3,
+  }));
+
+  let frame;
+  let done = false;
+  const start = performance.now();
+
+  function draw(ts) {
+    if (done) return;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    let alive = 0;
+    pieces.forEach(p => {
+      p.y += p.vy;
+      p.x += p.vx;
+      p.rot += p.rotSpeed;
+      if (p.y < canvas.height + 20) alive++;
+      ctx.save();
+      ctx.globalAlpha = p.opacity;
+      ctx.translate(p.x, p.y);
+      ctx.rotate((p.rot * Math.PI) / 180);
+      ctx.fillStyle = p.color;
+      ctx.fillRect(-p.w/2, -p.h/2, p.w, p.h);
+      ctx.restore();
+    });
+    if (alive > 0 && ts - start < 5000) {
+      frame = requestAnimationFrame(draw);
+    } else {
+      done = true;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+  }
+  frame = requestAnimationFrame(draw);
+}
+
+/* ── Init ── */
+async function init() {
+  buildGrid();
+  try {
+    const res = await fetch('/api/check-device', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ deviceId })
+    });
+    const data = await res.json();
+    document.getElementById('loadingScreen').style.display = 'none';
+    if (data.hasVoted) {
+      showThankYou(localStorage.getItem('valmore_choice') || '');
+    } else {
+      document.getElementById('mainPage').style.display = 'flex';
+    }
+  } catch {
+    document.getElementById('loadingScreen').style.display = 'none';
+    document.getElementById('mainPage').style.display = 'flex';
+  }
+}
+
+init();
+</script>
+</body>
+</html>
