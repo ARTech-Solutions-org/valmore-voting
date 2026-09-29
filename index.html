@@ -545,9 +545,9 @@ function startPolling() {
   setInterval(fetchState, 2500); // then every 2.5s
 }
 
-/* ── Dynamic QR (uses current domain automatically) ── */
+/* ── Dynamic QR (Hardcoded for Vercel) ── */
 function setupQR() {
-  const voteURL = `${location.origin}/vote`;
+  const voteURL = 'https://valmore-voting.vercel.app/vote';
   const encoded = encodeURIComponent(voteURL);
   document.getElementById('qrImg').src =
     `https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encoded}&margin=4&bgcolor=ffffff&color=000814`;
