@@ -1,10 +1,7 @@
 const express = require('express');
-const http = require('http');
-const path = require('path');
 const { v4: uuidv4 } = require('uuid');
 
 const app = express();
-const server = http.createServer(app);
 
 // ─── State ─────────────────────────────────────────────────────────────────
 const options = [
@@ -21,18 +18,9 @@ options.forEach(o => votes[o] = 0);
 let votedDevices = new Set(); // track device IDs that already voted
 let totalVoters = 0;
 
-// ─── Static files ──────────────────────────────────────────────────────────
-app.use(express.static(path.join(__dirname)));
 app.use(express.json());
 
 // ─── Routes ────────────────────────────────────────────────────────────────
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'display.html'));
-});
-
-app.get('/vote', (req, res) => {
-  res.sendFile(path.join(__dirname, 'vote.html'));
-});
 
 // Check if device has voted
 app.post('/api/check-device', (req, res) => {
@@ -77,10 +65,5 @@ app.get('/api/state', (req, res) => {
   res.json({ votes, totalVoters, options });
 });
 
-// ─── Server ────────────────────────────────────────────────────────────────
-const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
-  console.log(`✅ Valmore Voting Server running on http://localhost:${PORT}`);
-  console.log(`📺 Display Screen: http://localhost:${PORT}/`);
-  console.log(`📱 Vote Page:      http://localhost:${PORT}/vote`);
-});
+// ─── Export for Vercel ─────────────────────────────────────────────────────
+module.exports = app;
