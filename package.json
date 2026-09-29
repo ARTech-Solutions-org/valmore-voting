@@ -2,6 +2,7 @@
   "name": "valmore-voting",
   "version": "1.0.0",
   "description": "Valmore Holding Live Voting System",
+  "main": "server.js",
   "dependencies": {
     "express": "^4.18.2",
     "uuid": "^9.0.0"

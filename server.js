@@ -1,4 +1,5 @@
 const express = require('express');
+const path = require('path');
 const { v4: uuidv4 } = require('uuid');
 
 const app = express();
@@ -18,7 +19,18 @@ options.forEach(o => votes[o] = 0);
 let votedDevices = new Set(); // track device IDs that already voted
 let totalVoters = 0;
 
+// ─── Static files ──────────────────────────────────────────────────────────
+app.use(express.static(path.join(__dirname)));
 app.use(express.json());
+
+// ─── Routes ────────────────────────────────────────────────────────────────
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'index.html'));
+});
+
+app.get('/vote', (req, res) => {
+  res.sendFile(path.join(__dirname, 'vote.html'));
+});
 
 // ─── Routes ────────────────────────────────────────────────────────────────
 
