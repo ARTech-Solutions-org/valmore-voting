@@ -530,16 +530,20 @@ function updateUI(votes, total) {
   });
 }
 
-/* ── WebSocket ── */
-function connectWS() {
-  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-  const ws = new WebSocket(`${proto}//${location.host}`);
-  ws.onmessage = e => {
-    const d = JSON.parse(e.data);
-    if (d.type === 'update') updateUI(d.votes, d.totalVoters);
-  };
-  ws.onclose = () => setTimeout(connectWS, 2000);
-  ws.onerror = () => ws.close();
+/* ── Polling (Vercel-friendly) ── */
+async function fetchState() {
+  try {
+    const res = await fetch('/api/state');
+    const data = await res.json();
+    updateUI(data.votes, data.totalVoters);
+  } catch (err) {
+    console.error('Failed to fetch state:', err);
+  }
+}
+
+function startPolling() {
+  fetchState(); // fetch immediately
+  setInterval(fetchState, 2500); // then every 2.5s
 }
 
 /* ── Dynamic QR (uses current domain automatically) ── */
@@ -568,7 +572,7 @@ document.addEventListener('keydown', (e) => {
 
 buildPanels();
 setupQR();
-connectWS();
+startPolling();
 </script>
 </body>
 </html>

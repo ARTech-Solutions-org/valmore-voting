@@ -1,12 +1,10 @@
 const express = require('express');
-const { WebSocketServer } = require('ws');
 const http = require('http');
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
 
 const app = express();
 const server = http.createServer(app);
-const wss = new WebSocketServer({ server });
 
 // ─── State ─────────────────────────────────────────────────────────────────
 const options = [
@@ -62,8 +60,6 @@ app.post('/api/vote', (req, res) => {
   votedDevices.add(deviceId);
   totalVoters++;
 
-  broadcast({ type: 'update', votes, totalVoters });
-
   res.json({ success: true });
 });
 
@@ -73,29 +69,12 @@ app.post('/api/reset', (req, res) => {
   votedDevices.clear();
   totalVoters = 0;
 
-  broadcast({ type: 'update', votes, totalVoters });
-
   res.json({ success: true });
 });
 
 // Get current state
 app.get('/api/state', (req, res) => {
   res.json({ votes, totalVoters, options });
-});
-
-// ─── WebSocket ─────────────────────────────────────────────────────────────
-function broadcast(data) {
-  const msg = JSON.stringify(data);
-  wss.clients.forEach(client => {
-    if (client.readyState === 1) {
-      client.send(msg);
-    }
-  });
-}
-
-wss.on('connection', (ws) => {
-  // Send current state on connect
-  ws.send(JSON.stringify({ type: 'update', votes, totalVoters }));
 });
 
 // ─── Server ────────────────────────────────────────────────────────────────
