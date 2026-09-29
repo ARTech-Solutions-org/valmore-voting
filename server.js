@@ -4,11 +4,18 @@ const { v4: uuidv4 } = require('uuid');
 const { Redis } = require('@upstash/redis');
 
 let redis = null;
-try {
-  redis = Redis.fromEnv();
-  console.log("✅ Upstash Redis is configured.");
-} catch (e) {
-  console.log("⚠️ Upstash Redis not configured. Using temporary memory state.");
+if (process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN) {
+  try {
+    redis = new Redis({
+      url: process.env.KV_REST_API_URL,
+      token: process.env.KV_REST_API_TOKEN,
+    });
+    console.log("✅ Upstash Redis is configured.");
+  } catch (e) {
+    console.log("⚠️ Upstash Redis connection failed.", e);
+  }
+} else {
+  console.log("⚠️ Upstash Redis env variables missing. Using temporary memory state.");
 }
 
 const app = express();
